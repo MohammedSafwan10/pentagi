@@ -3,6 +3,7 @@
 .env.*
 .state
 !.env.example
+!.env.opencode.example
 !backend/cmd/installer/files/links/.env
 
 backend/tmp
@@ -41,6 +42,8 @@ neo4j/*
 *.swo
 *~
 __pycache__/
+local-build/
+/docker-ssl/
 
 # OS
 Thumbs.db

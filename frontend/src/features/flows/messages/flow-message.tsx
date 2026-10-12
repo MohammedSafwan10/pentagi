@@ -12,6 +12,7 @@ import { matchesSearchTerm } from '@/lib/text-filter';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/utils/format';
 
+import { visibleAssistantInput } from './assistant-handoff';
 import FlowMessageTypeIcon from './flow-message-type-icon';
 
 interface FlowMessageProps {
@@ -21,7 +22,8 @@ interface FlowMessageProps {
 }
 
 function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps) {
-    const { createdAt, message, result, resultFormat = ResultFormat.Plain, thinking, type } = log;
+    const { createdAt, message: rawMessage, result, resultFormat = ResultFormat.Plain, thinking, type } = log;
+    const message = type === MessageLogType.Input ? visibleAssistantInput(rawMessage) : rawMessage;
     const isReportMessage = type === MessageLogType.Report;
 
     const searchChecks = useMemo(() => {
@@ -147,7 +149,10 @@ function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps
         <div className={`flex flex-col ${type === MessageLogType.Input ? 'items-end' : 'items-start'}`}>
             <div
                 className={cn(
-                    'bg-card text-card-foreground max-w-[90%] rounded-xl border p-3 shadow-sm',
+                    'text-card-foreground max-w-[90%]',
+                    type === MessageLogType.Input
+                        ? 'bg-card rounded-xl border p-3 shadow-sm'
+                        : 'bg-transparent px-1 py-3',
                     resultFormat === ResultFormat.Terminal && isDetailsVisible ? 'w-full' : '',
                 )}
             >

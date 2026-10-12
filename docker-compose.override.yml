@@ -1,0 +1,9 @@
+services:
+  pentagi:
+    image: pentagi-local:opencode-fix
+    build:
+      context: .
+      dockerfile: Dockerfile.local-ui
+    depends_on:
+      opencode-proxy:
+        condition: service_healthy

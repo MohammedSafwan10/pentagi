@@ -1,0 +1,4 @@
+# Package the locally built backend and UI with the upstream runtime dependencies.
+FROM vxcontrol/pentagi:latest
+COPY frontend/dist/ /opt/pentagi/fe/
+COPY --chmod=755 local-build/pentagi /opt/pentagi/bin/pentagi

@@ -16,6 +16,23 @@
 
 </div>
 
+## This fork: chat improvements and OpenCode Go
+
+This fork adds model switching within the same assistant conversation, a
+model-aware thinking selector, persistent inline reasoning, immediate input
+display, startup cancellation and drafting while an assistant is busy.
+Completed answers no longer wait for conversation summarization to release
+the composer. AI replies use transparent backgrounds.
+
+The local OpenCode gateway supports DeepSeek V4.1 Flash, GLM 5.3 Flash and
+Muse Spark 1.3 Contributor, with separate models for specialist roles. Muse
+requests and reasoning summaries are translated to Responses. See
+[OPENCODE_SETUP.md](OPENCODE_SETUP.md) for configuration, build, startup,
+model limitations and verification. API keys belong in your ignored `.env`;
+[.env.opencode.example](.env.opencode.example) contains no credentials.
+The Compose override builds the local backend/UI image and therefore needs
+the documented build steps before first startup.
+
 ## Table of Contents
 
 - [Overview](#overview)

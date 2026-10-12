@@ -1,0 +1,54 @@
+# OpenCode Go uses bare model IDs, so LLM_SERVER_PROVIDER must be empty.
+# The gateway translates Muse roles to Responses, including streaming/tools.
+# Prices per million tokens: DeepSeek peak rate, GLM published rate.
+simple: &simple
+  model: deepseek-v4.1-flash
+  temperature: 0.3
+  max_tokens: 8192
+  extra_body:
+    thinking:
+      type: disabled
+  price:
+    input: 0.30
+    output: 1.20
+    cache_read: 0.006
+simple_json:
+  <<: *simple
+  json: true
+primary_agent: &agent
+  model: deepseek-v4.1-flash
+  max_tokens: 16384
+  extra_body:
+    thinking:
+      type: disabled
+  price:
+    input: 0.30
+    output: 1.20
+    cache_read: 0.006
+assistant: *agent
+generator: &muse
+  model: muse-spark-1.3-contributor
+  max_tokens: 16384
+  reasoning:
+    effort: low
+  price:
+    input: 0.10
+    output: 0.20
+    cache_read: 0.002
+refiner: *muse
+coder: *muse
+adviser: &glm
+  model: glm-5.3-flash
+  temperature: 0.6
+  max_tokens: 16384
+  extra_body:
+    reasoning_effort: low
+  price:
+    input: 0.15
+    output: 0.50
+    cache_read: 0.03
+pentester: *glm
+reflector: *simple
+searcher: *simple
+enricher: *simple
+installer: *agent

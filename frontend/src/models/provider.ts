@@ -7,7 +7,7 @@ export interface Provider {
 }
 
 export const getProviderDisplayName = (provider: Provider): string => {
-    return provider.name;
+    return provider.name === 'custom' ? 'Default configuration' : provider.name;
 };
 
 export const isProviderValid = (provider: Provider, providers: Provider[]): boolean => {
