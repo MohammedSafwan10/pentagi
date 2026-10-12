@@ -878,7 +878,7 @@ func readmeSection(t *testing.T, heading string) []string {
 	raw, err := os.ReadFile("../../../README.md")
 	require.NoError(t, err)
 
-	return readmeHeading(t, strings.Split(string(raw), "\n"), "###", heading)
+	return readmeHeading(t, strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n"), "###", heading)
 }
 
 func readmeBlock(t *testing.T, section []string, marker string) []string {

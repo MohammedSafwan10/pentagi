@@ -15,11 +15,12 @@ import { formatDate } from '@/lib/utils/format';
 import FlowMessageTypeIcon from './flow-message-type-icon';
 
 interface FlowMessageProps {
+    deliveryStatus?: 'failed' | 'preparing' | 'sending' | 'stopped';
     log: AssistantLogFragmentFragment | MessageLogFragmentFragment;
     searchValue?: string;
 }
 
-function FlowMessage({ log, searchValue = '' }: FlowMessageProps) {
+function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps) {
     const { createdAt, message, result, resultFormat = ResultFormat.Plain, thinking, type } = log;
     const isReportMessage = type === MessageLogType.Report;
 
@@ -205,7 +206,15 @@ function FlowMessage({ log, searchValue = '' }: FlowMessageProps) {
                     className="text-muted-foreground/50"
                     data-slot="flow-message-id"
                 >
-                    {log.id}
+                    {deliveryStatus
+                        ? deliveryStatus === 'failed'
+                            ? 'Not delivered'
+                            : deliveryStatus === 'stopped'
+                              ? 'Stopped before delivery'
+                              : deliveryStatus === 'preparing'
+                                ? 'Preparing…'
+                                : 'Sending…'
+                        : log.id}
                 </span>
             </div>
         </div>

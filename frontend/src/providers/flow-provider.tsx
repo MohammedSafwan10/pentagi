@@ -7,6 +7,11 @@ import type { FlowFormValues } from '@/features/flows/flow-form';
 import type { AssistantFragmentFragment, AssistantLogFragmentFragment, FlowQuery } from '@/graphql/types';
 
 import {
+    assignPendingInput,
+    beginPendingInput,
+    removePendingInput,
+} from '@/features/flows/messages/pending-assistant-input';
+import {
     AgentLogAddedDocument,
     AssistantCreatedDocument,
     AssistantDeletedDocument,
@@ -564,6 +569,8 @@ export function FlowProvider({ children }: FlowProviderProps) {
                 return false;
             }
 
+            const pendingId = beginPendingInput(flowId, null, input);
+
             try {
                 const { data } = await createAssistantMutation({
                     variables: {
@@ -579,12 +586,18 @@ export function FlowProvider({ children }: FlowProviderProps) {
                     const { assistant } = data.createAssistant;
 
                     if (assistant?.id) {
+                        assignPendingInput(pendingId, flowId, assistant.id);
                         selectAssistant(assistant.id);
+
+                        return true;
                     }
                 }
 
-                return true;
+                removePendingInput(pendingId);
+
+                return false;
             } catch (error) {
+                removePendingInput(pendingId);
                 const description =
                     error instanceof Error ? error.message : 'An error occurred while creating assistant';
                 toast.error('Failed to create assistant', {
@@ -600,7 +613,7 @@ export function FlowProvider({ children }: FlowProviderProps) {
 
     const submitAssistantMessage = useCallback(
         async (assistantId: string, values: FlowFormValues) => {
-            const { message, resourceIds, useAgents } = values;
+            const { message, providerName, resourceIds, useAgents } = values;
 
             const input = message.trim();
 
@@ -608,12 +621,20 @@ export function FlowProvider({ children }: FlowProviderProps) {
                 return false;
             }
 
+            const pendingId = beginPendingInput(
+                flowId,
+                assistantId,
+                input,
+                (assistantLogsData?.assistantLogs ?? []).map((log) => log.id),
+            );
+
             try {
                 await submitAssistantMessageMutation({
                     variables: {
                         assistantId,
                         flowId,
                         input,
+                        modelProvider: providerName,
                         resourceIds: resourceIds?.length ? resourceIds : undefined,
                         useAgents,
                     },
@@ -621,6 +642,7 @@ export function FlowProvider({ children }: FlowProviderProps) {
 
                 return true;
             } catch (error) {
+                removePendingInput(pendingId);
                 const description =
                     error instanceof Error ? error.message : 'An error occurred while calling assistant';
                 toast.error('Failed to call assistant', {
@@ -631,7 +653,7 @@ export function FlowProvider({ children }: FlowProviderProps) {
                 return false;
             }
         },
-        [flowId, submitAssistantMessageMutation],
+        [assistantLogsData?.assistantLogs, flowId, submitAssistantMessageMutation],
     );
 
     const stopAssistant = useCallback(

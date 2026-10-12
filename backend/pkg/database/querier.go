@@ -279,6 +279,7 @@ type Querier interface {
 	UpdateAssistantLogContent(ctx context.Context, arg UpdateAssistantLogContentParams) (Assistantlog, error)
 	UpdateAssistantLogResult(ctx context.Context, arg UpdateAssistantLogResultParams) (Assistantlog, error)
 	UpdateAssistantModel(ctx context.Context, arg UpdateAssistantModelParams) (Assistant, error)
+	UpdateAssistantProvider(ctx context.Context, arg UpdateAssistantProviderParams) (Assistant, error)
 	UpdateAssistantStatus(ctx context.Context, arg UpdateAssistantStatusParams) (Assistant, error)
 	UpdateAssistantTitle(ctx context.Context, arg UpdateAssistantTitleParams) (Assistant, error)
 	UpdateAssistantToolCallIDTemplate(ctx context.Context, arg UpdateAssistantToolCallIDTemplateParams) (Assistant, error)

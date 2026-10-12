@@ -112,3 +112,9 @@ UPDATE assistants
 SET deleted_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateAssistantProvider :one
+UPDATE assistants
+SET model = $1, model_provider_name = $2, model_provider_type = $3
+WHERE id = $4 AND deleted_at IS NULL
+RETURNING *;

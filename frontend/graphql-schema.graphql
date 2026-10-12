@@ -1138,8 +1138,8 @@ mutation createAssistant($flowId: ID!, $modelProvider: String!, $input: String!,
     }
 }
 
-mutation callAssistant($flowId: ID!, $assistantId: ID!, $input: String!, $useAgents: Boolean!, $resourceIds: [ID!]) {
-    callAssistant(flowId: $flowId, assistantId: $assistantId, input: $input, useAgents: $useAgents, resourceIds: $resourceIds)
+mutation callAssistant($flowId: ID!, $assistantId: ID!, $input: String!, $useAgents: Boolean!, $resourceIds: [ID!], $modelProvider: String) {
+    callAssistant(flowId: $flowId, assistantId: $assistantId, input: $input, useAgents: $useAgents, resourceIds: $resourceIds, modelProvider: $modelProvider)
 }
 
 mutation stopAssistant($flowId: ID!, $assistantId: ID!) {

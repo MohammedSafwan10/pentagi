@@ -673,7 +673,10 @@ export function FlowForm({
                                                         </TooltipTrigger>
                                                         <TooltipContent>
                                                             <p className="max-w-48">
-                                                                Enable multi-agent collaboration for complex tasks
+                                                                Off: the selected assistant works directly. On: it can
+                                                                delegate to specialist agents. Each specialist uses the
+                                                                model configured for its role; this can add time and
+                                                                model calls.
                                                             </p>
                                                         </TooltipContent>
                                                     </Tooltip>

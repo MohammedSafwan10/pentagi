@@ -14,6 +14,7 @@ import (
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/embeddings"
 	"pentagi/pkg/providers/pconfig"
+	"pentagi/pkg/providers/provider"
 	"pentagi/pkg/templates"
 	"pentagi/pkg/tools"
 
@@ -46,6 +47,7 @@ func (*lifecycleChain) Embedder() embeddings.Embedder                      { ret
 func (*lifecycleChain) SetAgentLogProvider(tools.AgentLogProvider)         {}
 func (*lifecycleChain) SetMsgLogProvider(tools.MsgLogProvider)             {}
 func (*lifecycleChain) SetFlowWorker(providers.FlowWorker)                 {}
+func (*lifecycleChain) SetProvider(provider.Provider)                      {}
 func (*lifecycleChain) SetMsgChainID(int64)                                {}
 func (*lifecycleChain) PutInputToAgentChain(context.Context, string) error { return nil }
 func (*lifecycleChain) EnsureChainConsistency(context.Context) error       { return nil }

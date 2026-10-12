@@ -1141,6 +1141,7 @@ export type CallAssistantMutationVariables = Exact<{
     input: string;
     useAgents: boolean;
     resourceIds?: Array<string | number> | string | number | null | undefined;
+    modelProvider?: string | null | undefined;
 }>;
 
 export type CallAssistantMutation = { callAssistant: ResultType };
@@ -8433,6 +8434,11 @@ export const CallAssistantDocument = {
                         type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
                     },
                 },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'modelProvider' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'String' } },
+                },
             ],
             selectionSet: {
                 kind: 'SelectionSet',
@@ -8465,6 +8471,11 @@ export const CallAssistantDocument = {
                                 kind: 'Argument',
                                 name: { kind: 'Name', value: 'resourceIds' },
                                 value: { kind: 'Variable', name: { kind: 'Name', value: 'resourceIds' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'modelProvider' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'modelProvider' } },
                             },
                         ],
                     },

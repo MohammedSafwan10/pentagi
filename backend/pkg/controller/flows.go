@@ -51,6 +51,7 @@ type FlowController interface {
 	ListFlows(ctx context.Context) []FlowWorker
 	GetFlow(ctx context.Context, flowID int64) (FlowWorker, error)
 	StopFlow(ctx context.Context, flowID int64) error
+	StopAssistant(ctx context.Context, flowID, assistantID int64) (database.Assistant, error)
 	FinishFlow(ctx context.Context, flowID int64) error
 	RenameFlow(ctx context.Context, flowID int64, title string) error
 	ReportFlow(ctx context.Context, flowID int64, budget time.Duration) error
@@ -125,21 +126,22 @@ func (e *flowEntry) available() bool {
 }
 
 type flowController struct {
-	db     database.Querier
-	mx     *sync.Mutex
-	cfg    *config.Config
-	flows  map[int64]*flowEntry
-	docker docker.DockerClient
-	provs  providers.ProviderController
-	subs   subscriptions.SubscriptionsController
-	alc    AgentLogController
-	mlc    MsgLogController
-	aslc   AssistantLogController
-	slc    SearchLogController
-	tlc    TermLogController
-	vslc   VectorStoreLogController
-	tclc   ToolCallLogController
-	sc     ScreenshotController
+	preparingAssistants map[int64]context.CancelFunc
+	db                  database.Querier
+	mx                  *sync.Mutex
+	cfg                 *config.Config
+	flows               map[int64]*flowEntry
+	docker              docker.DockerClient
+	provs               providers.ProviderController
+	subs                subscriptions.SubscriptionsController
+	alc                 AgentLogController
+	mlc                 MsgLogController
+	aslc                AssistantLogController
+	slc                 SearchLogController
+	tlc                 TermLogController
+	vslc                VectorStoreLogController
+	tclc                ToolCallLogController
+	sc                  ScreenshotController
 
 	build func(ctx context.Context, flow database.Flow, fwc newFlowWorkerCtx, commit func() error) (FlowWorker, error)
 }
@@ -447,11 +449,20 @@ func (fc *flowController) CreateAssistant(
 		return 0, fmt.Errorf("failed to create assistant: %w", err)
 	}
 
+	assistantCtx, cancelAssistant := context.WithCancel(context.WithoutCancel(ctx))
+	fc.mx.Lock()
+	if fc.preparingAssistants == nil {
+		fc.preparingAssistants = make(map[int64]context.CancelFunc)
+	}
+	fc.preparingAssistants[assistant.ID] = cancelAssistant
+	fc.mx.Unlock()
 	fc.subs.NewFlowPublisher(userID, flowID).AssistantCreated(ctx, assistant)
 
 	go func() {
+		defer cancelAssistant()
+		defer func() { fc.mx.Lock(); delete(fc.preparingAssistants, assistant.ID); fc.mx.Unlock() }()
 		prepare(ctx)
-		fc.prepareAssistant(ctx, entry, assistant, awc)
+		fc.prepareAssistant(assistantCtx, entry, assistant, awc)
 	}()
 
 	return assistant.ID, nil
@@ -548,8 +559,11 @@ func (fc *flowController) prepareAssistant(
 	assistant database.Assistant,
 	awc newAssistantWorkerCtx,
 ) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flowPrepareTimeout)
+	ctx, cancel := context.WithTimeout(ctx, flowPrepareTimeout)
 	defer cancel()
+	if ctx.Err() != nil {
+		return
+	}
 
 	fc.mx.Lock()
 	ready := entry.available()

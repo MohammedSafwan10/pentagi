@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, ChevronDown, ListFilter, Plus, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { useDebouncedCallback } from 'use-debounce';
 import { z } from 'zod';
 
@@ -30,6 +31,7 @@ import { useSystemSettings } from '@/providers/system-settings-provider';
 
 import { FlowForm, type FlowFormValues } from '../flow-form';
 import FlowMessage from './flow-message';
+import { usePendingInputs } from './pending-assistant-input';
 
 interface AssistantsDropdownProps {
     assistants: AssistantFragmentFragment[];
@@ -284,8 +286,14 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
         return logs.filter((log) => log.assistantId === selectedAssistantId);
     }, [logs, selectedAssistantId]);
 
+    const pendingInputs = usePendingInputs(flowId, selectedAssistantId, selectedAssistantLogs);
+    const scrollLogs = useMemo(
+        () => [...selectedAssistantLogs, ...pendingInputs],
+        [pendingInputs, selectedAssistantLogs],
+    );
+
     const { containerRef, endRef, hasNewMessages, isScrolledToBottom, scrollToEnd } = useAutoScroll(
-        selectedAssistantLogs,
+        scrollLogs,
         selectedAssistantId ?? null,
     );
 
@@ -370,13 +378,20 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
             return false;
         }
 
+        if (selectedAssistantId && !selectedAssistant) {
+            return false;
+        }
+
         setIsSubmitting(true);
 
         try {
             if (!selectedAssistantId) {
                 setIsAssistantCreating(true);
 
-                return await createAssistant(values);
+                return await createAssistant({
+                    ...values,
+                    message: values.message,
+                });
             }
 
             return await submitAssistantMessage(selectedAssistantId, values);
@@ -423,6 +438,14 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
             return 'Select a flow...';
         }
 
+        if (flowStatus === StatusType.Failed) {
+            return 'This flow could not start. Create a new flow to try again.';
+        }
+
+        if (flowStatus === StatusType.Finished) {
+            return 'This flow has ended. Create a new flow to continue.';
+        }
+
         if (isAssistantCreating) {
             return 'Creating assistant...';
         }
@@ -453,14 +476,12 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                 return 'Type your message...';
             }
         }
-    }, [flowId, isAssistantCreating, selectedAssistant?.status]);
+    }, [flowId, flowStatus, isAssistantCreating, selectedAssistant?.status]);
 
     const assistantStatus = selectedAssistant?.status;
+    const isFlowEnded = flowStatus === StatusType.Finished || flowStatus === StatusType.Failed;
     const isFormDisabled =
-        flowStatus === StatusType.Finished ||
-        flowStatus === StatusType.Failed ||
-        assistantStatus === StatusType.Finished ||
-        assistantStatus === StatusType.Failed;
+        isFlowEnded || assistantStatus === StatusType.Finished || assistantStatus === StatusType.Failed;
     const isFormLoading = assistantStatus === StatusType.Created || assistantStatus === StatusType.Running;
 
     return (
@@ -471,7 +492,7 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                         <AssistantsDropdown
                             assistants={assistants}
                             isAssistantCreating={isAssistantCreating}
-                            isDisabled={isFormDisabled}
+                            isDisabled={isFlowEnded}
                             onAssistantCreate={handleAssistantCreate}
                             onAssistantDelete={handleAssistantDelete}
                             onAssistantSelect={(assistantId) => selectAssistant?.(assistantId)}
@@ -522,7 +543,7 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                 </div>
             </div>
 
-            {isAssistantCreating ? (
+            {isAssistantCreating && !pendingInputs.length ? (
                 <Empty>
                     <EmptyHeader>
                         <EmptyMedia variant="icon">
@@ -532,8 +553,8 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                         <EmptyDescription>Please wait while we set up your new assistant</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
-            ) : selectedAssistantId ? (
-                filteredLogs.length > 0 ? (
+            ) : selectedAssistantId || pendingInputs.length ? (
+                filteredLogs.length > 0 || pendingInputs.length > 0 ? (
                     <div className="relative h-full overflow-y-hidden">
                         <div
                             className="flex h-full flex-col gap-4 overflow-y-auto"
@@ -544,6 +565,21 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                                     key={log.id}
                                     log={log}
                                     searchValue={debouncedSearchValue}
+                                />
+                            ))}
+                            {pendingInputs.map((log) => (
+                                <FlowMessage
+                                    deliveryStatus={
+                                        selectedAssistant?.status === StatusType.Failed
+                                            ? 'failed'
+                                            : selectedAssistant?.status === StatusType.Finished
+                                              ? 'stopped'
+                                              : isAssistantCreating
+                                                ? 'sending'
+                                                : 'preparing'
+                                    }
+                                    key={log.id}
+                                    log={log}
                                 />
                             ))}
                             <div ref={endRef} />
@@ -590,8 +626,12 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                             <EmptyMedia variant="icon">
                                 <Plus />
                             </EmptyMedia>
-                            <EmptyTitle>No messages</EmptyTitle>
-                            <EmptyDescription>No messages found for this assistant</EmptyDescription>
+                            <EmptyTitle>{isFormLoading ? 'Preparing your assistant' : 'No messages'}</EmptyTitle>
+                            <EmptyDescription>
+                                {isFormLoading
+                                    ? 'Your message was accepted. Setting up a new session can take a little time.'
+                                    : 'No messages found for this assistant'}
+                            </EmptyDescription>
                         </EmptyHeader>
                     </Empty>
                 )
@@ -608,6 +648,31 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
             )}
 
             <div className="bg-background sticky bottom-0 p-px">
+                {isFormDisabled && (
+                    <div
+                        className="text-muted-foreground mb-2 flex items-center justify-between gap-2 text-sm"
+                        role="status"
+                    >
+                        <span>{isFlowEnded ? 'This flow has ended.' : 'This assistant session has ended.'}</span>
+                        {isFlowEnded ? (
+                            <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                            >
+                                <Link to="/flows/new">Create new flow</Link>
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={handleAssistantCreate}
+                                size="sm"
+                                variant="outline"
+                            >
+                                Create new assistant
+                            </Button>
+                        )}
+                    </div>
+                )}
                 <FlowForm
                     defaultValues={{
                         providerName: selectedAssistant?.provider?.name ?? selectedProvider?.name ?? '',
@@ -616,13 +681,17 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
                     isCanceling={isCanceling}
                     isDisabled={isFormDisabled}
                     isLoading={isFormLoading}
-                    isProviderDisabled={!!selectedAssistant}
                     isSubmitting={isSubmitting}
                     onCancel={handleStopAssistant}
                     onSubmit={handleSubmitMessage}
                     placeholder={placeholder}
                     type={'assistant'}
                 />
+                {!isFormDisabled && selectedAssistant && (
+                    <p className="text-muted-foreground mt-2 text-xs">
+                        The selected model will be used for your next message in this conversation.
+                    </p>
+                )}
             </div>
         </div>
     );

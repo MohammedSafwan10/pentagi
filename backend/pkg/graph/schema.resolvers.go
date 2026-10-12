@@ -363,7 +363,7 @@ func (r *mutationResolver) CreateAssistant(ctx context.Context, flowID int64, mo
 }
 
 // CallAssistant is the resolver for the callAssistant field.
-func (r *mutationResolver) CallAssistant(ctx context.Context, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64) (model.ResultType, error) {
+func (r *mutationResolver) CallAssistant(ctx context.Context, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string) (model.ResultType, error) {
 	uid, err := validatePermissionWithFlowID(ctx, "assistants.edit", flowID, r.DB)
 	if err != nil {
 		return model.ResultTypeError, err
@@ -397,7 +397,20 @@ func (r *mutationResolver) CallAssistant(ctx context.Context, flowID int64, assi
 		return model.ResultTypeError, err
 	}
 
-	if err := aw.PutInput(ctx, input, useAgents, dbResources); err != nil {
+	var selected provider.Provider
+	if modelProvider != nil && *modelProvider != "" {
+		current, getErr := r.DB.GetFlowAssistant(ctx, database.GetFlowAssistantParams{ID: assistantID, FlowID: flowID})
+		if getErr != nil {
+			return model.ResultTypeError, getErr
+		}
+		if current.ModelProviderName != *modelProvider {
+			selected, err = r.ProvidersCtrl.GetProvider(ctx, provider.ProviderName(*modelProvider), uid)
+			if err != nil {
+				return model.ResultTypeError, err
+			}
+		}
+	}
+	if err := aw.PutInput(ctx, input, useAgents, dbResources, selected); err != nil {
 		return model.ResultTypeError, err
 	}
 
@@ -417,29 +430,10 @@ func (r *mutationResolver) StopAssistant(ctx context.Context, flowID int64, assi
 		"assistant": assistantID,
 	}).Debug("stop assistant")
 
-	fw, err := r.Controller.GetFlow(ctx, flowID)
+	assistant, err := r.Controller.StopAssistant(ctx, flowID, assistantID)
 	if err != nil {
 		return nil, err
 	}
-
-	aw, err := fw.GetAssistant(ctx, assistantID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := aw.Stop(ctx); err != nil {
-		return nil, err
-	}
-
-	assistant, err := r.DB.GetFlowAssistant(ctx, database.GetFlowAssistantParams{
-		ID:     assistantID,
-		FlowID: flowID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	r.Subscriptions.NewFlowPublisher(fw.GetUserID(), flowID).AssistantUpdated(ctx, assistant)
 
 	return converter.ConvertAssistant(assistant), nil
 }

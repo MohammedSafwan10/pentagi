@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1070,7 +1071,11 @@ func TestPerformer_PerformAgentChain_WritesAMissingScopeToGraphitiAsADash(t *tes
 			)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.want, episodes())
+			actual := episodes()
+			for i := range actual {
+				actual[i].content = strings.ReplaceAll(actual[i].content, "\r\n", "\n")
+			}
+			assert.Equal(t, tt.want, actual)
 		})
 	}
 }

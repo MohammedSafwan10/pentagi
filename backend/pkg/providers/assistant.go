@@ -35,6 +35,7 @@ type AssistantProvider interface {
 	SetAgentLogProvider(agentLog tools.AgentLogProvider)
 	SetMsgLogProvider(msgLog tools.MsgLogProvider)
 	SetFlowWorker(flowWorker FlowWorker)
+	SetProvider(prv provider.Provider)
 
 	PrepareAgentChain(ctx context.Context) (int64, error)
 	PerformAgentChain(ctx context.Context) error
@@ -99,6 +100,12 @@ func (ap *assistantProvider) SetMsgLogProvider(msgLog tools.MsgLogProvider) {
 
 func (ap *assistantProvider) SetFlowWorker(flowWorker FlowWorker) {
 	ap.flowWorker = flowWorker
+}
+
+// SetProvider is called between turns by the assistant's serialized worker.
+// The message chain, executor and conversation identity stay unchanged.
+func (ap *assistantProvider) SetProvider(prv provider.Provider) {
+	ap.fp.Provider = prv
 }
 
 func (ap *assistantProvider) PrepareAgentChain(ctx context.Context) (int64, error) {

@@ -6,6 +6,11 @@ import type { FlowFormValues } from '@/features/flows/flow-form';
 import type { FlowFragmentFragment, FlowsQuery } from '@/graphql/types';
 
 import {
+    assignPendingInput,
+    beginPendingInput,
+    removePendingInput,
+} from '@/features/flows/messages/pending-assistant-input';
+import {
     CreateAssistantDocument,
     CreateFlowDocument,
     DeleteFlowDocument,
@@ -111,6 +116,8 @@ export function FlowsProvider({ children }: FlowsProviderProps) {
                 return null;
             }
 
+            const pendingId = beginPendingInput('new', null, input);
+
             try {
                 const { data } = await createAssistantMutation({
                     variables: {
@@ -123,11 +130,20 @@ export function FlowsProvider({ children }: FlowsProviderProps) {
                 });
 
                 if (data?.createAssistant?.flow?.id) {
+                    if (data.createAssistant.assistant?.id) {
+                        assignPendingInput(pendingId, data.createAssistant.flow.id, data.createAssistant.assistant.id);
+                    } else {
+                        removePendingInput(pendingId);
+                    }
+
                     return data.createAssistant.flow.id;
                 }
 
+                removePendingInput(pendingId);
+
                 return null;
             } catch (error) {
+                removePendingInput(pendingId);
                 const description =
                     error instanceof Error ? error.message : 'An error occurred while creating assistant';
                 toast.error('Failed to create assistant', {

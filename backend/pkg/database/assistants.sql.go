@@ -446,6 +446,44 @@ func (q *Queries) UpdateAssistantModel(ctx context.Context, arg UpdateAssistantM
 	return i, err
 }
 
+const updateAssistantProvider = `-- name: UpdateAssistantProvider :one
+UPDATE assistants
+SET model = $1, model_provider_name = $2, model_provider_type = $3
+WHERE id = $4 AND deleted_at IS NULL
+RETURNING id, status, title, model, model_provider_name, language, functions, trace_id, flow_id, use_agents, msgchain_id, created_at, updated_at, deleted_at, model_provider_type, tool_call_id_template
+`
+
+type UpdateAssistantProviderParams struct {
+	Model string       `json:"model"`
+	Name  string       `json:"name"`
+	Type  ProviderType `json:"type"`
+	ID    int64        `json:"id"`
+}
+
+func (q *Queries) UpdateAssistantProvider(ctx context.Context, arg UpdateAssistantProviderParams) (Assistant, error) {
+	row := q.db.QueryRowContext(ctx, updateAssistantProvider, arg.Model, arg.Name, arg.Type, arg.ID)
+	var i Assistant
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.Title,
+		&i.Model,
+		&i.ModelProviderName,
+		&i.Language,
+		&i.Functions,
+		&i.TraceID,
+		&i.FlowID,
+		&i.UseAgents,
+		&i.MsgchainID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ModelProviderType,
+		&i.ToolCallIDTemplate,
+	)
+	return i, err
+}
+
 const updateAssistantStatus = `-- name: UpdateAssistantStatus :one
 UPDATE assistants
 SET status = $1

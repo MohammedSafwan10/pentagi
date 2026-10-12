@@ -33,7 +33,7 @@ type AssistantWorker interface {
 	GetTitle() string
 	GetStatus(ctx context.Context) (database.AssistantStatus, error)
 	SetStatus(ctx context.Context, status database.AssistantStatus) error
-	PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource) error
+	PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource, models ...provider.Provider) error
 	Finish(ctx context.Context) error
 	Stop(ctx context.Context) error
 }
@@ -96,6 +96,7 @@ const interruptedRunNote = "The server restarted before the assistant finished t
 type assistantInput struct {
 	input     string
 	useAgents bool
+	provider  provider.Provider
 	reply     *inputReply
 }
 
@@ -158,7 +159,7 @@ func buildAssistantWorker(
 	pub := awc.subs.NewFlowPublisher(awc.userID, awc.flowID)
 
 	defer func() {
-		if retErr == nil || errors.Is(retErr, ErrFlowAlreadyStopped) {
+		if retErr == nil || errors.Is(retErr, ErrFlowAlreadyStopped) || errors.Is(retErr, context.Canceled) {
 			return
 		}
 
@@ -237,7 +238,7 @@ func buildAssistantWorker(
 
 	updated, err := awc.db.UpdateAssistant(ctx, database.UpdateAssistantParams{
 		Title:              assistantProvider.Title(),
-		Model:              assistantProvider.Model(pconfig.OptionsTypePrimaryAgent),
+		Model:              assistantProvider.Model(pconfig.OptionsTypeAssistant),
 		Language:           assistantProvider.Language(),
 		ToolCallIDTemplate: assistantProvider.ToolCallIDTemplate(),
 		Functions:          functionsBlob,
@@ -314,6 +315,10 @@ func buildAssistantWorker(
 
 	pub.AssistantUpdated(ctx, assistant)
 
+	if ctx.Err() != nil {
+		aw.cancel()
+		return nil, ctx.Err()
+	}
 	if err := aw.PutInput(ctx, awc.input, awc.useAgents, awc.resources); err != nil {
 		if aw.ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			assistantSpan.End(langfuse.WithSpanStatus("assistant worker stopped or finished by its owner"))
@@ -517,9 +522,22 @@ func (aw *assistantWorker) noteInterruptedRun(ctx context.Context) {
 func (aw *assistantWorker) worker() {
 	defer aw.wg.Done()
 
-	perform := func(ctx context.Context, input string, useAgents bool) error {
+	perform := func(ctx context.Context, input string, useAgents bool, prv provider.Provider) error {
+		aw.runMX.Lock()
+		ctx, aw.runST = context.WithCancel(aw.ctx)
 		aw.runWG.Add(1)
+		aw.runMX.Unlock()
 		defer aw.runWG.Done()
+		if prv != nil {
+			updated, err := aw.db.UpdateAssistantProvider(ctx, database.UpdateAssistantProviderParams{
+				ID: aw.id, Name: prv.Name().String(), Type: database.ProviderType(prv.Type()), Model: prv.Model(pconfig.OptionsTypeAssistant),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to switch assistant provider: %w", err)
+			}
+			aw.ap.SetProvider(prv)
+			aw.pub.AssistantUpdated(ctx, updated)
+		}
 
 		aw.noteInterruptedRun(ctx)
 
@@ -536,7 +554,12 @@ func (aw *assistantWorker) worker() {
 		}
 
 		defer func() {
-			if err := aw.SetStatus(ctx, database.AssistantStatusWaiting); err != nil {
+			if aw.ctx.Err() != nil {
+				return
+			}
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			if err := aw.SetStatus(cleanupCtx, database.AssistantStatusWaiting); err != nil {
 				obs.LogErrorOrCancel(aw.logger, err, "failed to set assistant status to waiting")
 			}
 		}()
@@ -545,10 +568,6 @@ func (aw *assistantWorker) worker() {
 		if err != nil {
 			return fmt.Errorf("failed to put input to flow assistant log: %w", err)
 		}
-
-		aw.runMX.Lock()
-		ctx, aw.runST = context.WithCancel(aw.ctx)
-		aw.runMX.Unlock()
 
 		if err := aw.ap.PutInputToAgentChain(ctx, input); err != nil {
 			return fmt.Errorf("failed to put input to agent chain: %w", err)
@@ -573,7 +592,7 @@ func (aw *assistantWorker) worker() {
 		case <-aw.ctx.Done():
 			return
 		case ain := <-aw.input:
-			err := perform(aw.ctx, ain.input, ain.useAgents)
+			err := perform(aw.ctx, ain.input, ain.useAgents, ain.provider)
 			if err != nil {
 				obs.LogErrorOrCancel(aw.logger, err, "failed to perform assistant chain")
 			}
@@ -634,7 +653,7 @@ func (aw *assistantWorker) SetStatus(ctx context.Context, status database.Assist
 	return nil
 }
 
-func (aw *assistantWorker) PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource) error {
+func (aw *assistantWorker) PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource, models ...provider.Provider) error {
 	ctx, span := obs.Observer.NewSpan(ctx, obs.SpanKindInternal, "controller.assistantWorker.PutInput")
 	defer span.End()
 
@@ -645,6 +664,9 @@ func (aw *assistantWorker) PutInput(ctx context.Context, input string, useAgents
 	}
 
 	ain := assistantInput{input: input, useAgents: useAgents, reply: newInputReply()}
+	if len(models) > 0 {
+		ain.provider = models[0]
+	}
 	select {
 	case <-aw.ctx.Done():
 		return fmt.Errorf("assistant %d flow %d stopped: %w", aw.id, aw.flowID, aw.ctx.Err())
@@ -697,7 +719,9 @@ func (aw *assistantWorker) Stop(ctx context.Context) error {
 	_, span := obs.Observer.NewSpan(ctx, obs.SpanKindInternal, "controller.assistantWorker.Stop")
 	defer span.End()
 
+	aw.runMX.Lock()
 	aw.runST()
+	aw.runMX.Unlock()
 	done := make(chan struct{})
 	timer := time.NewTimer(stopAssistantTimeout)
 	defer timer.Stop()
