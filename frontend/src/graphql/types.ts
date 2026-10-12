@@ -740,7 +740,7 @@ export type FlowsQuery = { flows: Array<FlowFragmentFragment> | null };
 
 export type ProvidersQueryVariables = Exact<{ [key: string]: never }>;
 
-export type ProvidersQuery = { providers: Array<ProviderFragmentFragment> };
+export type ProvidersQuery = { providers: Array<{ thinkingLevels: Array<string> } & ProviderFragmentFragment> };
 
 export type SettingsQueryVariables = Exact<{ [key: string]: never }>;
 
@@ -1129,6 +1129,7 @@ export type CreateAssistantMutationVariables = Exact<{
     input: string;
     useAgents: boolean;
     resourceIds?: Array<string | number> | string | number | null | undefined;
+    thinkingLevel?: string | null | undefined;
 }>;
 
 export type CreateAssistantMutation = {
@@ -1142,6 +1143,7 @@ export type CallAssistantMutationVariables = Exact<{
     useAgents: boolean;
     resourceIds?: Array<string | number> | string | number | null | undefined;
     modelProvider?: string | null | undefined;
+    thinkingLevel?: string | null | undefined;
 }>;
 
 export type CallAssistantMutation = { callAssistant: ResultType };
@@ -3532,7 +3534,10 @@ export const ProvidersDocument = {
                         name: { kind: 'Name', value: 'providers' },
                         selectionSet: {
                             kind: 'SelectionSet',
-                            selections: [{ kind: 'FragmentSpread', name: { kind: 'Name', value: 'providerFragment' } }],
+                            selections: [
+                                { kind: 'Field', name: { kind: 'Name', value: 'thinkingLevels' } },
+                                { kind: 'FragmentSpread', name: { kind: 'Name', value: 'providerFragment' } },
+                            ],
                         },
                     },
                 ],
@@ -8242,6 +8247,11 @@ export const CreateAssistantDocument = {
                         type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
                     },
                 },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'thinkingLevel' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'String' } },
+                },
             ],
             selectionSet: {
                 kind: 'SelectionSet',
@@ -8274,6 +8284,11 @@ export const CreateAssistantDocument = {
                                 kind: 'Argument',
                                 name: { kind: 'Name', value: 'resourceIds' },
                                 value: { kind: 'Variable', name: { kind: 'Name', value: 'resourceIds' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'thinkingLevel' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'thinkingLevel' } },
                             },
                         ],
                         selectionSet: {
@@ -8439,6 +8454,11 @@ export const CallAssistantDocument = {
                     variable: { kind: 'Variable', name: { kind: 'Name', value: 'modelProvider' } },
                     type: { kind: 'NamedType', name: { kind: 'Name', value: 'String' } },
                 },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'thinkingLevel' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'String' } },
+                },
             ],
             selectionSet: {
                 kind: 'SelectionSet',
@@ -8476,6 +8496,11 @@ export const CallAssistantDocument = {
                                 kind: 'Argument',
                                 name: { kind: 'Name', value: 'modelProvider' },
                                 value: { kind: 'Variable', name: { kind: 'Name', value: 'modelProvider' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'thinkingLevel' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'thinkingLevel' } },
                             },
                         ],
                     },

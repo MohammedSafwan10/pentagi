@@ -860,7 +860,6 @@ func (fp *flowProvider) processAssistantResult(
 	summarizerHandler tools.SummarizeHandler,
 	durationDelta float64,
 ) error {
-	var err error
 
 	processAssistantResultStartTime := time.Now()
 
@@ -880,26 +879,7 @@ func (fp *flowProvider) processAssistantResult(
 		}
 	}
 
-	if summarizer != nil {
-		// it returns the same chain state if error occurs
-		chain, err = summarizer.SummarizeChain(ctx, summarizerHandler, chain, fp.tcIDTemplate)
-		if err != nil {
-			// log swallowed error
-			_, observation := obs.Observer.NewObservation(ctx)
-			observation.Event(
-				langfuse.WithEventName("chain summarization error swallowed"),
-				langfuse.WithEventInput(chain),
-				langfuse.WithEventStatus(err.Error()),
-				langfuse.WithEventLevel(langfuse.ObservationLevelWarning),
-				langfuse.WithEventMetadata(langfuse.Metadata{
-					"tc_id_template": fp.tcIDTemplate,
-					"msg_chain_id":   chainID,
-					"error":          err.Error(),
-				}),
-			)
-			logger.WithError(err).Warn("failed to summarize chain")
-		}
-	}
+	// Summarize before the next turn, not after the user has received this answer.
 
 	// Preserve reasoning for assistant responses using universal pattern
 	msg := llms.MessageContent{Role: llms.ChatMessageTypeAI}

@@ -725,6 +725,7 @@ enum UsageStatsPeriod {
 
 # Short provider view for selector
 type Provider {
+  thinkingLevels: [String!]!
   name: String!
   type: ProviderType!
 }
@@ -1082,8 +1083,8 @@ type Mutation {
   renameFlow(flowId: ID!, title: String!): ResultType!
 
   # Assistant management
-  createAssistant(flowId: ID!, modelProvider: String!, input: String!, useAgents: Boolean!, resourceIds: [ID!]): FlowAssistant!
-  callAssistant(flowId: ID!, assistantId: ID!, input: String!, useAgents: Boolean!, resourceIds: [ID!], modelProvider: String): ResultType!
+  createAssistant(flowId: ID!, modelProvider: String!, input: String!, useAgents: Boolean!, resourceIds: [ID!], thinkingLevel: String): FlowAssistant!
+  callAssistant(flowId: ID!, assistantId: ID!, input: String!, useAgents: Boolean!, resourceIds: [ID!], modelProvider: String, thinkingLevel: String): ResultType!
   stopAssistant(flowId: ID!, assistantId: ID!): Assistant!
   deleteAssistant(flowId: ID!, assistantId: ID!): ResultType!
 

@@ -370,9 +370,9 @@ type ComplexityRoot struct {
 	Mutation struct {
 		AddFavoriteFlow         func(childComplexity int, flowID int64) int
 		AnonymizeText           func(childComplexity int, text string) int
-		CallAssistant           func(childComplexity int, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string) int
+		CallAssistant           func(childComplexity int, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string, thinkingLevel *string) int
 		CreateAPIToken          func(childComplexity int, input model.CreateAPITokenInput) int
-		CreateAssistant         func(childComplexity int, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64) int
+		CreateAssistant         func(childComplexity int, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64, thinkingLevel *string) int
 		CreateFlow              func(childComplexity int, modelProvider string, input string, resourceIds []int64) int
 		CreateFlowTemplate      func(childComplexity int, input model.CreateFlowTemplateInput) int
 		CreateKnowledgeDocument func(childComplexity int, input model.CreateKnowledgeDocumentInput) int
@@ -416,8 +416,9 @@ type ComplexityRoot struct {
 	}
 
 	Provider struct {
-		Name func(childComplexity int) int
-		Type func(childComplexity int) int
+		Name           func(childComplexity int) int
+		ThinkingLevels func(childComplexity int) int
+		Type           func(childComplexity int) int
 	}
 
 	ProviderConfig struct {
@@ -783,8 +784,8 @@ type MutationResolver interface {
 	FinishFlow(ctx context.Context, flowID int64) (model.ResultType, error)
 	DeleteFlow(ctx context.Context, flowID int64) (model.ResultType, error)
 	RenameFlow(ctx context.Context, flowID int64, title string) (model.ResultType, error)
-	CreateAssistant(ctx context.Context, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64) (*model.FlowAssistant, error)
-	CallAssistant(ctx context.Context, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string) (model.ResultType, error)
+	CreateAssistant(ctx context.Context, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64, thinkingLevel *string) (*model.FlowAssistant, error)
+	CallAssistant(ctx context.Context, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string, thinkingLevel *string) (model.ResultType, error)
 	StopAssistant(ctx context.Context, flowID int64, assistantID int64) (*model.Assistant, error)
 	DeleteAssistant(ctx context.Context, flowID int64, assistantID int64) (model.ResultType, error)
 	TestAgent(ctx context.Context, typeArg model.ProviderType, agentType model.AgentConfigType, agent model.AgentConfig, simple *model.AgentConfig) (*model.AgentTestResult, error)
@@ -2455,7 +2456,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CallAssistant(childComplexity, args["flowId"].(int64), args["assistantId"].(int64), args["input"].(string), args["useAgents"].(bool), args["resourceIds"].([]int64), args["modelProvider"].(*string)), true
+		return e.complexity.Mutation.CallAssistant(childComplexity, args["flowId"].(int64), args["assistantId"].(int64), args["input"].(string), args["useAgents"].(bool), args["resourceIds"].([]int64), args["modelProvider"].(*string), args["thinkingLevel"].(*string)), true
 
 	case "Mutation.createAPIToken":
 		if e.complexity.Mutation.CreateAPIToken == nil {
@@ -2479,7 +2480,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateAssistant(childComplexity, args["flowId"].(int64), args["modelProvider"].(string), args["input"].(string), args["useAgents"].(bool), args["resourceIds"].([]int64)), true
+		return e.complexity.Mutation.CreateAssistant(childComplexity, args["flowId"].(int64), args["modelProvider"].(string), args["input"].(string), args["useAgents"].(bool), args["resourceIds"].([]int64), args["thinkingLevel"].(*string)), true
 
 	case "Mutation.createFlow":
 		if e.complexity.Mutation.CreateFlow == nil {
@@ -2860,6 +2861,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Provider.Name(childComplexity), true
+
+	case "Provider.thinkingLevels":
+		if e.complexity.Provider.ThinkingLevels == nil {
+			break
+		}
+
+		return e.complexity.Provider.ThinkingLevels(childComplexity), true
 
 	case "Provider.type":
 		if e.complexity.Provider.Type == nil {
@@ -5249,6 +5257,11 @@ func (ec *executionContext) field_Mutation_callAssistant_args(ctx context.Contex
 		return nil, err
 	}
 	args["modelProvider"] = arg5
+	arg6, err := ec.field_Mutation_callAssistant_argsThinkingLevel(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["thinkingLevel"] = arg6
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_callAssistant_argsFlowID(
@@ -5383,6 +5396,28 @@ func (ec *executionContext) field_Mutation_callAssistant_argsModelProvider(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_callAssistant_argsThinkingLevel(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["thinkingLevel"]
+	if !ok {
+		var zeroVal *string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("thinkingLevel"))
+	if tmp, ok := rawArgs["thinkingLevel"]; ok {
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+	}
+
+	var zeroVal *string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_createAPIToken_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -5443,6 +5478,11 @@ func (ec *executionContext) field_Mutation_createAssistant_args(ctx context.Cont
 		return nil, err
 	}
 	args["resourceIds"] = arg4
+	arg5, err := ec.field_Mutation_createAssistant_argsThinkingLevel(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["thinkingLevel"] = arg5
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createAssistant_argsFlowID(
@@ -5552,6 +5592,28 @@ func (ec *executionContext) field_Mutation_createAssistant_argsResourceIds(
 	}
 
 	var zeroVal []int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createAssistant_argsThinkingLevel(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["thinkingLevel"]
+	if !ok {
+		var zeroVal *string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("thinkingLevel"))
+	if tmp, ok := rawArgs["thinkingLevel"]; ok {
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+	}
+
+	var zeroVal *string
 	return zeroVal, nil
 }
 
@@ -13102,6 +13164,8 @@ func (ec *executionContext) fieldContext_Assistant_provider(_ context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "thinkingLevels":
+				return ec.fieldContext_Provider_thinkingLevels(ctx, field)
 			case "name":
 				return ec.fieldContext_Provider_name(ctx, field)
 			case "type":
@@ -15289,6 +15353,8 @@ func (ec *executionContext) fieldContext_Flow_provider(_ context.Context, field 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "thinkingLevels":
+				return ec.fieldContext_Provider_thinkingLevels(ctx, field)
 			case "name":
 				return ec.fieldContext_Provider_name(ctx, field)
 			case "type":
@@ -19596,7 +19662,7 @@ func (ec *executionContext) _Mutation_createAssistant(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateAssistant(rctx, fc.Args["flowId"].(int64), fc.Args["modelProvider"].(string), fc.Args["input"].(string), fc.Args["useAgents"].(bool), fc.Args["resourceIds"].([]int64))
+		return ec.resolvers.Mutation().CreateAssistant(rctx, fc.Args["flowId"].(int64), fc.Args["modelProvider"].(string), fc.Args["input"].(string), fc.Args["useAgents"].(bool), fc.Args["resourceIds"].([]int64), fc.Args["thinkingLevel"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -19657,7 +19723,7 @@ func (ec *executionContext) _Mutation_callAssistant(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CallAssistant(rctx, fc.Args["flowId"].(int64), fc.Args["assistantId"].(int64), fc.Args["input"].(string), fc.Args["useAgents"].(bool), fc.Args["resourceIds"].([]int64), fc.Args["modelProvider"].(*string))
+		return ec.resolvers.Mutation().CallAssistant(rctx, fc.Args["flowId"].(int64), fc.Args["assistantId"].(int64), fc.Args["input"].(string), fc.Args["useAgents"].(bool), fc.Args["resourceIds"].([]int64), fc.Args["modelProvider"].(*string), fc.Args["thinkingLevel"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -21604,6 +21670,50 @@ func (ec *executionContext) fieldContext_PromptsConfig_userDefined(_ context.Con
 				return ec.fieldContext_UserPrompt_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserPrompt", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Provider_thinkingLevels(ctx context.Context, field graphql.CollectedField, obj *model.Provider) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Provider_thinkingLevels(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ThinkingLevels, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Provider_thinkingLevels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Provider",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -24373,6 +24483,8 @@ func (ec *executionContext) fieldContext_Query_providers(_ context.Context, fiel
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "thinkingLevels":
+				return ec.fieldContext_Provider_thinkingLevels(ctx, field)
 			case "name":
 				return ec.fieldContext_Provider_name(ctx, field)
 			case "type":
@@ -41461,6 +41573,11 @@ func (ec *executionContext) _Provider(ctx context.Context, sel ast.SelectionSet,
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Provider")
+		case "thinkingLevels":
+			out.Values[i] = ec._Provider_thinkingLevels(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "name":
 			out.Values[i] = ec._Provider_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

@@ -46,6 +46,7 @@ type FlowController interface {
 		prvtype provider.ProviderType,
 		functions *tools.Functions,
 		resources []database.UserResource,
+		thinkingLevels ...string,
 	) (int64, error)
 	LoadFlows(ctx context.Context) error
 	ListFlows(ctx context.Context) []FlowWorker
@@ -414,6 +415,7 @@ func (fc *flowController) CreateAssistant(
 	prvtype provider.ProviderType,
 	functions *tools.Functions,
 	resources []database.UserResource,
+	thinkingLevels ...string,
 ) (int64, error) {
 	fwc := newFlowWorkerCtx{
 		userID:        userID,
@@ -442,6 +444,9 @@ func (fc *flowController) CreateAssistant(
 		flowWorkerCtx: fwc.flowWorkerCtx,
 	}
 
+	if len(thinkingLevels) > 0 {
+		awc.thinkingLevel = &thinkingLevels[0]
+	}
 	assistant, err := reserveAssistant(ctx, awc)
 	if err != nil {
 		go prepare(ctx)

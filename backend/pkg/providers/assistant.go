@@ -36,6 +36,7 @@ type AssistantProvider interface {
 	SetMsgLogProvider(msgLog tools.MsgLogProvider)
 	SetFlowWorker(flowWorker FlowWorker)
 	SetProvider(prv provider.Provider)
+	SetThinkingLevel(level string) error
 
 	PrepareAgentChain(ctx context.Context) (int64, error)
 	PerformAgentChain(ctx context.Context) error
@@ -106,6 +107,15 @@ func (ap *assistantProvider) SetFlowWorker(flowWorker FlowWorker) {
 // The message chain, executor and conversation identity stay unchanged.
 func (ap *assistantProvider) SetProvider(prv provider.Provider) {
 	ap.fp.Provider = prv
+}
+
+func (ap *assistantProvider) SetThinkingLevel(level string) error {
+	prv, err := provider.WithThinking(ap.fp.Provider, level)
+	if err != nil {
+		return err
+	}
+	ap.fp.Provider = prv
+	return nil
 }
 
 func (ap *assistantProvider) PrepareAgentChain(ctx context.Context) (int64, error) {
@@ -297,6 +307,15 @@ func (ap *assistantProvider) updateAssistantChain(
 			llms.TextParts(llms.ChatMessageTypeSystem, systemPrompt),
 			llms.TextParts(llms.ChatMessageTypeHuman, humanPrompt),
 		}, nil
+	}
+
+	if ap.summarizer != nil {
+		compacted, summaryErr := ap.summarizer.SummarizeChain(ctx, ap.fp.GetSummarizeResultHandler(nil, nil), chain, ap.fp.tcIDTemplate)
+		if summaryErr != nil {
+			logrus.WithError(summaryErr).Warn("failed to summarize assistant history before the next turn")
+		} else {
+			chain = compacted
+		}
 	}
 
 	ast, err := cast.NewChainAST(chain, true)

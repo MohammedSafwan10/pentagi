@@ -38,7 +38,7 @@ function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps
     }, [searchValue, thinking, result]);
 
     const [isDetailsVisible, setIsDetailsVisible] = useState(isReportMessage);
-    const [isThinkingVisible, setIsThinkingVisible] = useState(false);
+    const [isThinkingVisible, setIsThinkingVisible] = useState(true);
 
     const [prevSearchValue, setPrevSearchValue] = useState(searchValue);
     const [prevHasThinkingMatch, setPrevHasThinkingMatch] = useState(searchChecks.hasThinkingMatch);
@@ -65,7 +65,6 @@ function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps
             }
         } else {
             setIsDetailsVisible(isReportMessage);
-            setIsThinkingVisible(false);
         }
     }
 
@@ -86,9 +85,9 @@ function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps
         });
     }, [thinking, message, result, resultFormat]);
 
-    const shouldShowThinking = thinking && (!message || isThinkingVisible);
+    const shouldShowThinking = thinking && isThinkingVisible;
 
-    const shouldShowThinkingToggle = thinking && message;
+    const shouldShowThinkingToggle = Boolean(thinking);
 
     // Gate by visibility so the (potentially heavy) details subtree isn't in the DOM when collapsed.
     const renderDetailsContent = () => {
@@ -154,12 +153,14 @@ function FlowMessage({ deliveryStatus, log, searchValue = '' }: FlowMessageProps
             >
                 {shouldShowThinkingToggle && (
                     <div className="text-muted-foreground mb-2 text-xs">
-                        <div
+                        <button
+                            aria-expanded={Boolean(shouldShowThinking)}
                             className="cursor-pointer"
                             onClick={toggleThinking}
+                            type="button"
                         >
                             {isThinkingVisible ? 'Hide thinking' : 'Show thinking'}
-                        </div>
+                        </button>
                     </div>
                 )}
 

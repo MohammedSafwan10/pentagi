@@ -560,6 +560,7 @@ query flows {
 
 query providers {
     providers {
+        thinkingLevels
         ...providerFragment
     }
 }
@@ -1127,8 +1128,8 @@ mutation renameFlow($flowId: ID!, $title: String!) {
     renameFlow(flowId: $flowId, title: $title)
 }
 
-mutation createAssistant($flowId: ID!, $modelProvider: String!, $input: String!, $useAgents: Boolean!, $resourceIds: [ID!]) {
-    createAssistant(flowId: $flowId, modelProvider: $modelProvider, input: $input, useAgents: $useAgents, resourceIds: $resourceIds) {
+mutation createAssistant($flowId: ID!, $modelProvider: String!, $input: String!, $useAgents: Boolean!, $resourceIds: [ID!], $thinkingLevel: String) {
+    createAssistant(flowId: $flowId, modelProvider: $modelProvider, input: $input, useAgents: $useAgents, resourceIds: $resourceIds, thinkingLevel: $thinkingLevel) {
         flow {
             ...flowFragment
         }
@@ -1138,8 +1139,8 @@ mutation createAssistant($flowId: ID!, $modelProvider: String!, $input: String!,
     }
 }
 
-mutation callAssistant($flowId: ID!, $assistantId: ID!, $input: String!, $useAgents: Boolean!, $resourceIds: [ID!], $modelProvider: String) {
-    callAssistant(flowId: $flowId, assistantId: $assistantId, input: $input, useAgents: $useAgents, resourceIds: $resourceIds, modelProvider: $modelProvider)
+mutation callAssistant($flowId: ID!, $assistantId: ID!, $input: String!, $useAgents: Boolean!, $resourceIds: [ID!], $modelProvider: String, $thinkingLevel: String) {
+    callAssistant(flowId: $flowId, assistantId: $assistantId, input: $input, useAgents: $useAgents, resourceIds: $resourceIds, modelProvider: $modelProvider, thinkingLevel: $thinkingLevel)
 }
 
 mutation stopAssistant($flowId: ID!, $assistantId: ID!) {

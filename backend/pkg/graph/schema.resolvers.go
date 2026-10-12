@@ -286,7 +286,7 @@ func (r *mutationResolver) RenameFlow(ctx context.Context, flowID int64, title s
 }
 
 // CreateAssistant is the resolver for the createAssistant field.
-func (r *mutationResolver) CreateAssistant(ctx context.Context, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64) (*model.FlowAssistant, error) {
+func (r *mutationResolver) CreateAssistant(ctx context.Context, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64, thinkingLevel *string) (*model.FlowAssistant, error) {
 	var (
 		err error
 		uid int64
@@ -336,9 +336,16 @@ func (r *mutationResolver) CreateAssistant(ctx context.Context, flowID int64, mo
 		return nil, err
 	}
 	prvtype := prv.Type()
+	levels := []string{}
+	if thinkingLevel != nil {
+		if err := provider.ValidateThinkingLevel(prv.Model(pconfig.OptionsTypeAssistant), *thinkingLevel); err != nil {
+			return nil, err
+		}
+		levels = append(levels, *thinkingLevel)
+	}
 
 	assistantID, err := r.Controller.CreateAssistant(
-		ctx, uid, flowID, input, useAgents, prvname, prvtype, nil, dbResources,
+		ctx, uid, flowID, input, useAgents, prvname, prvtype, nil, dbResources, levels...,
 	)
 	if err != nil {
 		return nil, err
@@ -363,7 +370,7 @@ func (r *mutationResolver) CreateAssistant(ctx context.Context, flowID int64, mo
 }
 
 // CallAssistant is the resolver for the callAssistant field.
-func (r *mutationResolver) CallAssistant(ctx context.Context, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string) (model.ResultType, error) {
+func (r *mutationResolver) CallAssistant(ctx context.Context, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64, modelProvider *string, thinkingLevel *string) (model.ResultType, error) {
 	uid, err := validatePermissionWithFlowID(ctx, "assistants.edit", flowID, r.DB)
 	if err != nil {
 		return model.ResultTypeError, err
@@ -410,7 +417,7 @@ func (r *mutationResolver) CallAssistant(ctx context.Context, flowID int64, assi
 			}
 		}
 	}
-	if err := aw.PutInput(ctx, input, useAgents, dbResources, selected); err != nil {
+	if err := aw.PutInput(ctx, input, useAgents, dbResources, controller.AssistantRunOptions{Provider: selected, ThinkingLevel: thinkingLevel}); err != nil {
 		return model.ResultTypeError, err
 	}
 
@@ -1328,8 +1335,9 @@ func (r *queryResolver) Providers(ctx context.Context) ([]*model.Provider, error
 	providersList := make([]*model.Provider, len(providers))
 	for i, prvname := range providers.ListNames() {
 		providersList[i] = &model.Provider{
-			Name: string(prvname),
-			Type: model.ProviderType(providers[prvname].Type()),
+			ThinkingLevels: provider.ThinkingLevels(providers[prvname].Model(pconfig.OptionsTypeAssistant)),
+			Name:           string(prvname),
+			Type:           model.ProviderType(providers[prvname].Type()),
 		}
 	}
 

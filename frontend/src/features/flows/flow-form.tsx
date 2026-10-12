@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRef } from 'react';
-import { useController } from 'react-hook-form';
+import { useController, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import type { UserResourceFragmentFragment } from '@/graphql/types';
@@ -52,6 +52,7 @@ const formSchema = z.object({
     message: z.string().trim().min(1, { message: 'Message cannot be empty' }),
     providerName: z.string().trim().min(1, { message: 'Provider must be selected' }),
     resourceIds: z.array(z.string()),
+    thinkingLevel: z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional(),
     useAgents: z.boolean(),
 });
 
@@ -150,6 +151,7 @@ export function FlowForm({
             message: defaultValues?.message ?? '',
             providerName: defaultValues?.providerName ?? '',
             resourceIds: defaultValues?.resourceIds ?? [],
+            thinkingLevel: defaultValues?.thinkingLevel ?? 'none',
             useAgents: defaultValues?.useAgents ?? false,
         },
         schema: formSchema,
@@ -163,6 +165,18 @@ export function FlowForm({
         resetField,
         setValue,
     } = form;
+
+    const watchedProviderName = useWatch({ control, name: 'providerName' });
+    const thinkingLevels = useMemo(
+        () => providers.find((provider) => provider.name === watchedProviderName)?.thinkingLevels ?? [],
+        [providers, watchedProviderName],
+    );
+    const watchedThinkingLevel = useWatch({ control, name: 'thinkingLevel' });
+    useEffect(() => {
+        if (type === 'assistant' && !thinkingLevels.includes(watchedThinkingLevel ?? '')) {
+            setValue('thinkingLevel', thinkingLevels[0] as FlowFormValues['thinkingLevel'], { shouldValidate: true });
+        }
+    }, [setValue, thinkingLevels, type, watchedThinkingLevel]);
 
     // useController registers the field; with useWatch alone `resetField('resourceIds')` is a no-op.
     const {
@@ -259,6 +273,10 @@ export function FlowForm({
     }, [isFormDisabled]);
 
     const handleSubmit = async (values: FlowFormValues) => {
+        if (isFormDisabled) {
+            return;
+        }
+
         if (!(await onSubmit(values))) {
             return;
         }
@@ -530,7 +548,7 @@ export function FlowForm({
                                     {...field}
                                     autoFocus
                                     className="min-h-0"
-                                    disabled={isFormDisabled}
+                                    disabled={isDisabled || isSubmitting}
                                     maxRows={9}
                                     minRows={1}
                                     onKeyDown={handleKeyDown}
@@ -644,6 +662,47 @@ export function FlowForm({
                                             );
                                         }}
                                     />
+
+                                    {type === 'assistant' && thinkingLevels.length > 0 && (
+                                        <FormField
+                                            control={control}
+                                            name="thinkingLevel"
+                                            render={({ field }) => (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <InputGroupButton
+                                                            aria-label="Thinking level"
+                                                            disabled={isFormDisabled}
+                                                            variant="ghost"
+                                                        >
+                                                            Thinking:{' '}
+                                                            {field.value
+                                                                ? field.value[0]?.toUpperCase() + field.value.slice(1)
+                                                                : 'None'}
+                                                            <ChevronDown />
+                                                        </InputGroupButton>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent
+                                                        align="start"
+                                                        side="top"
+                                                    >
+                                                        {thinkingLevels.map((level) => (
+                                                            <DropdownMenuItem
+                                                                key={level}
+                                                                onSelect={() => field.onChange(level)}
+                                                            >
+                                                                {level[0]?.toUpperCase()}
+                                                                {level.slice(1)}
+                                                                {field.value === level && (
+                                                                    <Check className="ml-auto size-4" />
+                                                                )}
+                                                            </DropdownMenuItem>
+                                                        ))}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
+                                        />
+                                    )}
 
                                     {type === 'assistant' && (
                                         <FormField

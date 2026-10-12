@@ -47,6 +47,7 @@ func (*lifecycleChain) Embedder() embeddings.Embedder                      { ret
 func (*lifecycleChain) SetAgentLogProvider(tools.AgentLogProvider)         {}
 func (*lifecycleChain) SetMsgLogProvider(tools.MsgLogProvider)             {}
 func (*lifecycleChain) SetFlowWorker(providers.FlowWorker)                 {}
+func (*lifecycleChain) SetThinkingLevel(string) error                      { return nil }
 func (*lifecycleChain) SetProvider(provider.Provider)                      {}
 func (*lifecycleChain) SetMsgChainID(int64)                                {}
 func (*lifecycleChain) PutInputToAgentChain(context.Context, string) error { return nil }

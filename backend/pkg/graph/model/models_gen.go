@@ -372,8 +372,9 @@ type PromptsConfig struct {
 }
 
 type Provider struct {
-	Name string       `json:"name"`
-	Type ProviderType `json:"type"`
+	ThinkingLevels []string     `json:"thinkingLevels"`
+	Name           string       `json:"name"`
+	Type           ProviderType `json:"type"`
 }
 
 type ProviderConfig struct {

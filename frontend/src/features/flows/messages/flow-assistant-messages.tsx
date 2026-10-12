@@ -18,7 +18,7 @@ import { Form, FormControl, FormField } from '@/components/ui/form';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
-import { StatusType } from '@/graphql/types';
+import { MessageLogType, StatusType } from '@/graphql/types';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { Log } from '@/lib/log';
 import { cn } from '@/lib/utils';
@@ -465,7 +465,7 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
             }
 
             case StatusType.Running: {
-                return 'Assistant is running... Click Stop to interrupt';
+                return 'Write your next message… The assistant is still working.';
             }
 
             case StatusType.Waiting: {
@@ -483,6 +483,15 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
     const isFormDisabled =
         isFlowEnded || assistantStatus === StatusType.Finished || assistantStatus === StatusType.Failed;
     const isFormLoading = assistantStatus === StatusType.Created || assistantStatus === StatusType.Running;
+    const latestLog = selectedAssistantLogs.at(-1);
+    const progressLabel =
+        assistantStatus === StatusType.Created
+            ? 'Preparing assistant…'
+            : latestLog?.type === MessageLogType.Answer && /^\d+$/.test(latestLog.id)
+              ? 'Response received; finishing remaining work…'
+              : latestLog?.thinking && !latestLog.message
+                ? 'Thinking…'
+                : 'Working…';
 
     return (
         <div className={cn('flex h-full flex-col', className)}>
@@ -648,6 +657,15 @@ function FlowAssistantMessages({ className }: FlowAssistantMessagesProps) {
             )}
 
             <div className="bg-background sticky bottom-0 p-px">
+                {isFormLoading && (
+                    <p
+                        aria-live="polite"
+                        className="text-muted-foreground mb-2 text-xs"
+                        role="status"
+                    >
+                        {progressLabel} You can type your next message; sending is available when ready.
+                    </p>
+                )}
                 {isFormDisabled && (
                     <div
                         className="text-muted-foreground mb-2 flex items-center justify-between gap-2 text-sm"

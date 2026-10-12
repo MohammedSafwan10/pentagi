@@ -125,6 +125,7 @@ export function FlowsProvider({ children }: FlowsProviderProps) {
                         input,
                         modelProvider,
                         resourceIds: resourceIds?.length ? resourceIds : undefined,
+                        thinkingLevel: values.thinkingLevel,
                         useAgents,
                     },
                 });

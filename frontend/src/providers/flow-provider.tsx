@@ -183,7 +183,12 @@ export function FlowProvider({ children }: FlowProviderProps) {
 
     const isFlowMissing = deriveFlowMissing(flowData, flowError);
 
-    const { data: assistantsData, loading: isAssistantsLoading } = useQuery(AssistantsDocument, {
+    const {
+        data: assistantsData,
+        loading: isAssistantsLoading,
+        startPolling,
+        stopPolling,
+    } = useQuery(AssistantsDocument, {
         fetchPolicy: 'cache-first',
         nextFetchPolicy: 'cache-first',
         skip: !flowId,
@@ -191,6 +196,18 @@ export function FlowProvider({ children }: FlowProviderProps) {
     });
 
     const assistants = useMemo(() => assistantsData?.assistants ?? [], [assistantsData?.assistants]);
+    const hasBusyAssistant = assistants.some(
+        (assistant) => assistant.status === StatusType.Created || assistant.status === StatusType.Running,
+    );
+    useEffect(() => {
+        if (hasBusyAssistant) {
+            startPolling(2000);
+        } else {
+            stopPolling();
+        }
+
+        return stopPolling;
+    }, [hasBusyAssistant, startPolling, stopPolling]);
 
     const selectedAssistantId = useMemo(() => {
         if (!flowId) {
@@ -578,6 +595,7 @@ export function FlowProvider({ children }: FlowProviderProps) {
                         input,
                         modelProvider,
                         resourceIds: resourceIds?.length ? resourceIds : undefined,
+                        thinkingLevel: values.thinkingLevel,
                         useAgents,
                     },
                 });
@@ -636,6 +654,7 @@ export function FlowProvider({ children }: FlowProviderProps) {
                         input,
                         modelProvider: providerName,
                         resourceIds: resourceIds?.length ? resourceIds : undefined,
+                        thinkingLevel: values.thinkingLevel,
                         useAgents,
                     },
                 });

@@ -9,7 +9,10 @@ const { setSelectedProvider, uploadParams } = vi.hoisted(() => ({
 
 vi.mock('@/providers/providers-provider', () => ({
     useProviders: () => ({
-        providers: [{ name: 'openai', type: 'openai' }],
+        providers: [
+            { name: 'openai', thinkingLevels: ['none', 'low', 'medium', 'high'], type: 'openai' },
+            { name: 'muse', thinkingLevels: ['minimal', 'low', 'medium', 'high'], type: 'custom' },
+        ],
         setSelectedProvider,
     }),
 }));
@@ -145,5 +148,54 @@ describe('FlowForm attachments', () => {
         );
 
         expect(await screen.findByRole('button', { name: 'Remove scope.txt' })).toBeInTheDocument();
+    });
+});
+
+describe('FlowForm thinking and drafts', () => {
+    it('defaults to none and sends the user-selected level', async () => {
+        const user = userEvent.setup({ delay: null });
+        const onSubmit = vi.fn().mockResolvedValue(true);
+        render(
+            <FlowForm
+                defaultValues={{ providerName: 'openai' }}
+                onSubmit={onSubmit}
+                type="assistant"
+            />,
+        );
+        expect(screen.getByRole('button', { name: 'Thinking level' })).toHaveTextContent('None');
+        await user.click(screen.getByRole('button', { name: 'Thinking level' }));
+        await user.click(screen.getByRole('menuitem', { name: 'High' }));
+        await user.type(screen.getByRole('textbox'), 'Hello');
+        await user.click(screen.getByRole('button', { name: 'Submit' }));
+        await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ thinkingLevel: 'high' })));
+    });
+    it('uses minimal when the model cannot disable thinking', async () => {
+        render(
+            <FlowForm
+                defaultValues={{ providerName: 'muse' }}
+                onSubmit={vi.fn()}
+                type="assistant"
+            />,
+        );
+        await waitFor(() =>
+            expect(screen.getByRole('button', { name: 'Thinking level' })).toHaveTextContent('Minimal'),
+        );
+    });
+    it('allows drafting while busy and prevents submitting it', async () => {
+        const user = userEvent.setup({ delay: null });
+        const onSubmit = vi.fn();
+        render(
+            <FlowForm
+                defaultValues={{ providerName: 'openai' }}
+                isLoading
+                onCancel={vi.fn()}
+                onSubmit={onSubmit}
+                type="assistant"
+            />,
+        );
+        await user.type(screen.getByRole('textbox'), 'Next draft{Enter}');
+        expect(screen.getByRole('textbox')).toHaveValue('Next draft\n');
+        expect(onSubmit).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
     });
 });

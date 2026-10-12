@@ -33,7 +33,7 @@ type AssistantWorker interface {
 	GetTitle() string
 	GetStatus(ctx context.Context) (database.AssistantStatus, error)
 	SetStatus(ctx context.Context, status database.AssistantStatus) error
-	PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource, models ...provider.Provider) error
+	PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource, options ...AssistantRunOptions) error
 	Finish(ctx context.Context) error
 	Stop(ctx context.Context) error
 }
@@ -61,15 +61,16 @@ type assistantWorker struct {
 }
 
 type newAssistantWorkerCtx struct {
-	userID    int64
-	flowID    int64
-	input     string
-	useAgents bool
-	prvname   provider.ProviderName
-	prvtype   provider.ProviderType
-	functions *tools.Functions
-	resources []database.UserResource
-	fw        FlowWorker
+	userID        int64
+	flowID        int64
+	input         string
+	useAgents     bool
+	prvname       provider.ProviderName
+	prvtype       provider.ProviderType
+	functions     *tools.Functions
+	resources     []database.UserResource
+	thinkingLevel *string
+	fw            FlowWorker
 
 	flowWorkerCtx
 }
@@ -93,10 +94,15 @@ const assistantInputTimeout = 2 * time.Second
 const interruptedRunNote = "The server restarted before the assistant finished this request, " +
 	"so its reply may be incomplete. Send a message to continue."
 
+type AssistantRunOptions struct {
+	Provider      provider.Provider
+	ThinkingLevel *string
+}
+
 type assistantInput struct {
 	input     string
 	useAgents bool
-	provider  provider.Provider
+	options   AssistantRunOptions
 	reply     *inputReply
 }
 
@@ -319,7 +325,7 @@ func buildAssistantWorker(
 		aw.cancel()
 		return nil, ctx.Err()
 	}
-	if err := aw.PutInput(ctx, awc.input, awc.useAgents, awc.resources); err != nil {
+	if err := aw.PutInput(ctx, awc.input, awc.useAgents, awc.resources, AssistantRunOptions{ThinkingLevel: awc.thinkingLevel}); err != nil {
 		if aw.ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			assistantSpan.End(langfuse.WithSpanStatus("assistant worker stopped or finished by its owner"))
 			return aw, nil
@@ -522,7 +528,17 @@ func (aw *assistantWorker) noteInterruptedRun(ctx context.Context) {
 func (aw *assistantWorker) worker() {
 	defer aw.wg.Done()
 
-	perform := func(ctx context.Context, input string, useAgents bool, prv provider.Provider) error {
+	perform := func(ctx context.Context, input string, useAgents bool, options AssistantRunOptions) error {
+		prv := options.Provider
+		model := aw.ap.Model(pconfig.OptionsTypeAssistant)
+		if prv != nil {
+			model = prv.Model(pconfig.OptionsTypeAssistant)
+		}
+		if options.ThinkingLevel != nil {
+			if err := provider.ValidateThinkingLevel(model, *options.ThinkingLevel); err != nil {
+				return err
+			}
+		}
 		aw.runMX.Lock()
 		ctx, aw.runST = context.WithCancel(aw.ctx)
 		aw.runWG.Add(1)
@@ -539,6 +555,11 @@ func (aw *assistantWorker) worker() {
 			aw.pub.AssistantUpdated(ctx, updated)
 		}
 
+		if options.ThinkingLevel != nil {
+			if err := aw.ap.SetThinkingLevel(*options.ThinkingLevel); err != nil {
+				return err
+			}
+		}
 		aw.noteInterruptedRun(ctx)
 
 		_, err := aw.db.UpdateAssistantUseAgents(ctx, database.UpdateAssistantUseAgentsParams{
@@ -592,7 +613,7 @@ func (aw *assistantWorker) worker() {
 		case <-aw.ctx.Done():
 			return
 		case ain := <-aw.input:
-			err := perform(aw.ctx, ain.input, ain.useAgents, ain.provider)
+			err := perform(aw.ctx, ain.input, ain.useAgents, ain.options)
 			if err != nil {
 				obs.LogErrorOrCancel(aw.logger, err, "failed to perform assistant chain")
 			}
@@ -653,7 +674,7 @@ func (aw *assistantWorker) SetStatus(ctx context.Context, status database.Assist
 	return nil
 }
 
-func (aw *assistantWorker) PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource, models ...provider.Provider) error {
+func (aw *assistantWorker) PutInput(ctx context.Context, input string, useAgents bool, resources []database.UserResource, options ...AssistantRunOptions) error {
 	ctx, span := obs.Observer.NewSpan(ctx, obs.SpanKindInternal, "controller.assistantWorker.PutInput")
 	defer span.End()
 
@@ -664,8 +685,8 @@ func (aw *assistantWorker) PutInput(ctx context.Context, input string, useAgents
 	}
 
 	ain := assistantInput{input: input, useAgents: useAgents, reply: newInputReply()}
-	if len(models) > 0 {
-		ain.provider = models[0]
+	if len(options) > 0 {
+		ain.options = options[0]
 	}
 	select {
 	case <-aw.ctx.Done():

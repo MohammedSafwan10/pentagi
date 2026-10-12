@@ -28,6 +28,7 @@ import (
 	"pentagi/pkg/templates"
 	"pentagi/pkg/tools"
 
+	"github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1079,3 +1080,25 @@ func TestPerformer_PerformAgentChain_WritesAMissingScopeToGraphitiAsADash(t *tes
 		})
 	}
 }
+
+// The visible answer must be saved without another model call after it streams.
+type unexpectedPostAnswerSummary struct{ t *testing.T }
+
+func (s unexpectedPostAnswerSummary) SummarizeChain(context.Context, tools.SummarizeHandler, []llms.MessageContent, string) ([]llms.MessageContent, error) {
+	s.t.Fatal("completed answer triggered a blocking summarization call")
+	return nil, nil
+}
+func TestPerformer_CompletedAssistantAnswerDoesNotWaitForSummarization(t *testing.T) {
+	q := &performerChainQuerier{}
+	fp := &flowProvider{Provider: &thinkinglessAnswerProvider{}, db: q}
+	err := fp.processAssistantResult(context.Background(), logrus.NewEntry(logrus.New()), 1,
+		[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hello")},
+		&callResult{content: "hello"}, unexpectedPostAnswerSummary{t}, nil, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, q.chainWrites)
+}
+
+type thinkinglessAnswerProvider struct{ provider.Provider }
+
+func (*thinkinglessAnswerProvider) Model(pconfig.ProviderOptionsType) string { return "test" }
+func (*thinkinglessAnswerProvider) Type() provider.ProviderType              { return provider.ProviderCustom }

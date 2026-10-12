@@ -2,6 +2,7 @@ import { ProviderType } from '@/graphql/types';
 
 export interface Provider {
     name: string;
+    thinkingLevels?: string[];
     type: ProviderType;
 }
 
