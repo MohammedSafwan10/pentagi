@@ -155,5 +155,7 @@ def chat_chunks(response, model):
             if tokens is not None:
                 chunk['usage'] = tokens
             yield chunk
+            if completed:
+                return
     if not completed:
         raise ValueError('Muse stream ended without a completion event')

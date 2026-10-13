@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import Markdown from './markdown';
@@ -11,9 +11,36 @@ const tableMarkdown = [
 
 afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
 });
 
 describe('Markdown', () => {
+    it('copies only the selected block, retaining indentation and newlines with highlighting enabled', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        render(
+            <Markdown searchValue="echo">
+                {'Outside\n\n```bash\necho "hello"\n  echo "world"\n```\n\n```\nother block\n```'}
+            </Markdown>,
+        );
+        fireEvent.click(screen.getAllByRole('button', { name: 'Copy code block' })[0]!);
+        await waitFor(() => expect(screen.getByText('Copied')).toBeInTheDocument());
+        expect(writeText).toHaveBeenCalledWith('echo "hello"\n  echo "world"\n');
+        expect(screen.getAllByRole('button', { name: 'Copy code block' })[1]).toHaveTextContent('Copy');
+    });
+
+    it('allows retry after clipboard access fails and leaves inline code without a button', async () => {
+        const writeText = vi.fn().mockRejectedValueOnce(new Error('Denied')).mockResolvedValue(undefined);
+        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        render(<Markdown>{'Inline `text`\n\n```\ncommand\n```'}</Markdown>);
+        const button = screen.getByRole('button', { name: 'Copy code block' });
+        fireEvent.click(button);
+        await waitFor(() => expect(button).toHaveTextContent('Copy failed—retry'));
+        fireEvent.click(button);
+        await waitFor(() => expect(button).toHaveTextContent('Copied'));
+        expect(writeText).toHaveBeenLastCalledWith('command\n');
+    });
+
     it('wraps a table in a horizontally scrollable container so wide content cannot widen the message list', () => {
         const { container } = render(<Markdown>{tableMarkdown}</Markdown>);
 

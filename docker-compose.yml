@@ -309,21 +309,3 @@ services:
     networks:
       - pentagi-network
     shm_size: 2g
-
-  opencode-proxy:
-    image: python:3.12-alpine
-    restart: unless-stopped
-    container_name: opencode-proxy
-    hostname: opencode-proxy
-    volumes:
-      - ./opencode_proxy.py:/app/opencode_proxy.py:ro
-      - ./opencode_responses.py:/app/opencode_responses.py:ro
-    command: ["python", "-u", "/app/opencode_proxy.py"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    networks:
-      - pentagi-network

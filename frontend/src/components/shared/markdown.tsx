@@ -18,7 +18,17 @@ import sql from 'highlight.js/lib/languages/sql';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 import { common, createLowlight } from 'lowlight';
-import { isValidElement, type ReactElement, type ReactNode, useCallback, useMemo } from 'react';
+import {
+    type ComponentPropsWithoutRef,
+    isValidElement,
+    type ReactElement,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeSlug from 'rehype-slug';
@@ -91,6 +101,60 @@ const textElements = [
     'dt',
     'dd',
 ];
+
+function CopyableCodeBlock({ children, ...props }: ComponentPropsWithoutRef<'pre'>) {
+    const block = useRef<HTMLPreElement>(null);
+    const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
+
+    useEffect(() => {
+        if (status === 'idle') {
+            return;
+        }
+
+        const timer = window.setTimeout(() => setStatus('idle'), 2000);
+
+        return () => window.clearTimeout(timer);
+    }, [status]);
+
+    const copy = async () => {
+        const text = block.current?.textContent;
+
+        if (text === undefined || text === null) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            setStatus('copied');
+        } catch {
+            setStatus('failed');
+        }
+    };
+
+    return (
+        <div className="not-prose my-4 overflow-hidden rounded-md bg-[var(--editor-code-bg)]">
+            <div className="flex justify-end border-b border-white/10 px-3 py-1">
+                <button
+                    aria-label="Copy code block"
+                    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded px-2 py-1 text-xs focus-visible:outline-2"
+                    onClick={copy}
+                    type="button"
+                >
+                    <span aria-live="polite">
+                        {status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy failed—retry' : 'Copy'}
+                    </span>
+                </button>
+            </div>
+            <pre
+                {...props}
+                className={`m-0 overflow-x-auto p-4 text-xs leading-relaxed ${props.className || ''}`}
+                ref={block}
+            >
+                {children}
+            </pre>
+        </div>
+    );
+}
 
 function Markdown({ children, className, searchValue }: MarkdownProps) {
     const processedSearch = useMemo(() => {
@@ -222,11 +286,9 @@ function Markdown({ children, className, searchValue }: MarkdownProps) {
             components.code = ({ children: nodeChildren, ...props }) => {
                 return <code {...props}>{nodeChildren}</code>;
             };
-
-            components.pre = ({ children: nodeChildren, ...props }) => {
-                return <pre {...props}>{nodeChildren}</pre>;
-            };
         }
+
+        components.pre = ({ node: _node, ...props }) => <CopyableCodeBlock {...props} />;
 
         components.table = ({ children: nodeChildren, ...props }) => (
             <ScrollableRegion

@@ -307,8 +307,11 @@ func TestTerminal_WriteFile_RefusesANameTheArchiveCannotCarry(t *testing.T) {
 			// The entry for "/" is a directory, which holds no content.
 			name: "the root directory",
 			path: "/",
-			want: "tar archive content serialization failed: archive/tar: write too long",
+			want: "path must name a file, not a directory",
 		},
+		{name: "a trailing directory slash", path: "/work/", want: "path must name a file, not a directory"},
+		{name: "a path resolving to root", path: "/work/..", want: "path must name a file, not a directory"},
+		{name: "the current directory", path: ".", want: "path must name a file, not a directory"},
 	}
 
 	for _, tt := range tests {
@@ -323,6 +326,15 @@ func TestTerminal_WriteFile_RefusesANameTheArchiveCannotCarry(t *testing.T) {
 			assert.Zero(t, mock.copies, "nothing may be copied into the sandbox")
 		})
 	}
+}
+
+func TestTerminal_WriteFile_UsesContainerPathsWithoutReplacingDirectories(t *testing.T) {
+	mock := &fakeDockerClient{isRunning: true}
+	_, err := terminalFor(mock, &recordingTermLog{}).WriteFile(t.Context(), 1, "hello", "/work/nested/note.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "/work/nested", mock.copiedTo)
+	assert.False(t, mock.copyOptions.AllowOverwriteDirWithFile)
+	assert.Equal(t, "hello", mock.copied["note.txt"])
 }
 
 func TestTerminal_EditFile_AppliesTheDiff(t *testing.T) {

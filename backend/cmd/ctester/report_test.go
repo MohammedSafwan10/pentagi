@@ -90,7 +90,7 @@ func TestReport_WriteReportToFile_KeepsTheReportShape(t *testing.T) {
 		t.Fatalf("read golden: %v", err)
 	}
 
-	if string(got) != string(want) {
+	if strings.ReplaceAll(string(got), "\r\n", "\n") != strings.ReplaceAll(string(want), "\r\n", "\n") {
 		t.Errorf("report changed shape;\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }

@@ -280,6 +280,7 @@ func buildAssistantWorker(
 	executor.SetKnowledgeProvider(pub)
 	executor.SetGraphitiClient(awc.provs.GraphitiClient())
 
+	preparationCtx := ctx
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx, _ = obs.Observer.NewObservation(ctx, langfuse.WithObservationTraceID(observation.TraceID()))
 	aw := &assistantWorker{
@@ -319,13 +320,14 @@ func buildAssistantWorker(
 		return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to attach assistant worker", err)
 	}
 
+	if err := preparationCtx.Err(); err != nil {
+		aw.cancel()
+		aw.wg.Wait()
+		return nil, err
+	}
 	pub.AssistantUpdated(ctx, assistant)
 
-	if ctx.Err() != nil {
-		aw.cancel()
-		return nil, ctx.Err()
-	}
-	if err := aw.PutInput(ctx, awc.input, awc.useAgents, awc.resources, AssistantRunOptions{ThinkingLevel: awc.thinkingLevel}); err != nil {
+	if err := aw.PutInput(preparationCtx, awc.input, awc.useAgents, awc.resources, AssistantRunOptions{ThinkingLevel: awc.thinkingLevel}); err != nil {
 		if aw.ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			assistantSpan.End(langfuse.WithSpanStatus("assistant worker stopped or finished by its owner"))
 			return aw, nil
@@ -540,10 +542,12 @@ func (aw *assistantWorker) worker() {
 			}
 		}
 		aw.runMX.Lock()
-		ctx, aw.runST = context.WithCancel(aw.ctx)
+		runCtx, runCancel := context.WithCancel(aw.ctx)
+		ctx, aw.runST = runCtx, runCancel
 		aw.runWG.Add(1)
 		aw.runMX.Unlock()
 		defer aw.runWG.Done()
+		defer runCancel()
 		if prv != nil {
 			updated, err := aw.db.UpdateAssistantProvider(ctx, database.UpdateAssistantProviderParams{
 				ID: aw.id, Name: prv.Name().String(), Type: database.ProviderType(prv.Type()), Model: prv.Model(pconfig.OptionsTypeAssistant),

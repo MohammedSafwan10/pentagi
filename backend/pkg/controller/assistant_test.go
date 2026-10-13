@@ -74,6 +74,7 @@ type lifecycleFlowWorker struct {
 	refuses bool
 	mx      sync.Mutex
 	added   AssistantWorker
+	onAdd   func()
 }
 
 func (w *lifecycleFlowWorker) AddAssistant(_ context.Context, aw AssistantWorker) error {
@@ -84,8 +85,35 @@ func (w *lifecycleFlowWorker) AddAssistant(_ context.Context, aw AssistantWorker
 	w.mx.Lock()
 	defer w.mx.Unlock()
 	w.added = aw
+	if w.onAdd != nil {
+		w.onAdd()
+	}
 
 	return nil
+}
+
+func TestAssistant_CancelledPreparationCannotStartItsFirstTurn(t *testing.T) {
+	obs.InitObserver(context.Background(), nil, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	q := &lifecycleQuerier{}
+	chain := &lifecycleChain{started: make(chan struct{}), cancelled: make(chan struct{})}
+	fw := &lifecycleFlowWorker{onAdd: cancel}
+	awc := lifecycleAssistantCtx(q, &lifecycleProviders{provider: chain})
+	awc.fw = fw
+	assistant, err := reserveAssistant(ctx, awc)
+	require.NoError(t, err)
+	_, err = buildAssistantWorker(ctx, assistant, awc)
+	if worker := fw.registered(); worker != nil {
+		require.NoError(t, worker.Finish(context.Background()))
+	}
+	require.ErrorIs(t, err, context.Canceled)
+	select {
+	case <-chain.started:
+		t.Fatal("first turn ran after preparation was cancelled")
+	default:
+	}
+	assert.NotContains(t, q.recordedStatuses(), database.AssistantStatusFailed)
 }
 
 func (w *lifecycleFlowWorker) registered() AssistantWorker {

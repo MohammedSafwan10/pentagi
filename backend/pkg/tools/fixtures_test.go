@@ -136,6 +136,7 @@ type fakeDockerClient struct {
 	copies         int
 	copiedInto     string
 	copiedTo       string
+	copyOptions    client.CopyToContainerOptions
 	copied         map[string]string // regular files of the last archive copied in, by tar path
 	writtenContent string            // the first regular file of the last archive copied in
 	removed        []dockerRemoval
@@ -253,13 +254,14 @@ func (d *fakeDockerClient) ListContainerDir(context.Context, string, string) (do
 }
 
 func (d *fakeDockerClient) CopyToContainer(
-	ctx context.Context, name, dstPath string, src io.Reader, _ client.CopyToContainerOptions,
+	ctx context.Context, name, dstPath string, src io.Reader, options client.CopyToContainerOptions,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	d.copies++
 	d.copiedInto, d.copiedTo = name, dstPath
+	d.copyOptions = options
 	if d.copyToErr != nil {
 		return d.copyToErr
 	}

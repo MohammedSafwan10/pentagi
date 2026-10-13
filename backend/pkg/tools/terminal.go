@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
+	containerpath "path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -515,6 +515,11 @@ func (t *terminal) WriteFile(ctx context.Context, flowID int64, content string, 
 // overwriting it. It performs no terminal-log writes; WriteFile and EditFile
 // each log their own, differently-worded, success message.
 func (t *terminal) writeFileToContainer(ctx context.Context, flowID int64, path, content string) error {
+	cleanPath := containerpath.Clean(path)
+	filename := containerpath.Base(cleanPath)
+	if filename == "/" || filename == "." || filename == ".." || strings.HasSuffix(path, "/") {
+		return fmt.Errorf("path must name a file, not a directory")
+	}
 	containerName := PrimaryTerminalName(t.tenantPrefix, flowID)
 
 	err := t.requireRunningContainer(ctx)
@@ -527,11 +532,11 @@ func (t *terminal) writeFileToContainer(ctx context.Context, flowID int64, path,
 	archiveWriter := tar.NewWriter(tarBuffer)
 	defer archiveWriter.Close()
 
-	filename := filepath.Base(path)
 	fileDescriptor := &tar.Header{
-		Name: filename,
-		Mode: 0600,
-		Size: int64(len(content)),
+		Name:     filename,
+		Mode:     0600,
+		Size:     int64(len(content)),
+		Typeflag: tar.TypeReg,
 	}
 	err = archiveWriter.WriteHeader(fileDescriptor)
 	if err != nil {
@@ -548,9 +553,9 @@ func (t *terminal) writeFileToContainer(ctx context.Context, flowID int64, path,
 		return fmt.Errorf("failed to close tar writer: %w", err)
 	}
 
-	dir := filepath.Dir(path)
+	dir := containerpath.Dir(cleanPath)
 	err = t.dockerClient.CopyToContainer(ctx, containerName, dir, tarBuffer, client.CopyToContainerOptions{
-		AllowOverwriteDirWithFile: true,
+		AllowOverwriteDirWithFile: false,
 	})
 	if err != nil {
 		return fmt.Errorf("container file transfer failed: %w", err)

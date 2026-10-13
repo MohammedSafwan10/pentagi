@@ -10,6 +10,14 @@ def stream(*events):
 
 
 class BridgeTests(unittest.TestCase):
+    def test_terminal_event_does_not_wait_for_connection_to_close(self):
+        class KeepAliveStream:
+            def __iter__(self):
+                yield b'data: {"type":"response.completed","response":{}}\n'
+                yield b'\n'
+                raise AssertionError('bridge read past the terminal event')
+        self.assertEqual(len(list(chat_chunks(KeepAliveStream(), 'muse'))), 1)
+
     def test_reasoning_summary_streams_separately_from_answer(self):
         chunks = list(chat_chunks(stream(
             {'type': 'response.reasoning_summary_text.delta', 'delta': 'Checking the calculation'},

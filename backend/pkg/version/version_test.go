@@ -18,7 +18,8 @@ func TestVersion_GetBinaryVersion_FollowsTheSharedTable(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { PackageVer, PackageRev = "", "" })
 
-	for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
+	for _, line := range strings.Split(strings.TrimRight(normalized, "\n"), "\n") {
 		fields := strings.Split(line, "\t")
 		require.Len(t, fields, 3, "malformed row %q", line)
 
